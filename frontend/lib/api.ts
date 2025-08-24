@@ -35,8 +35,10 @@ const filesApi: AxiosInstance = axios.create({
 const setupInterceptors = (api: AxiosInstance, apiName: string) => {
   api.interceptors.request.use(
     (config) => {
-      // Add request timestamp for debugging
-      config.metadata = { startTime: new Date() };
+      // Add request timestamp for debugging (store in config params for debugging)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`${apiName} Request:`, config.url, new Date());
+      }
       return config;
     },
     (error) => {
