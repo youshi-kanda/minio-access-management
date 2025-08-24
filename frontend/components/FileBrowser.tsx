@@ -25,7 +25,7 @@ interface FileBrowserProps {
 interface FolderItem {
   name: string;
   fullPath: string;
-  type: 'folder';
+  type: string;
 }
 
 interface FileItem {
@@ -33,7 +33,7 @@ interface FileItem {
   fullPath: string;
   size: number;
   lastModified: string;
-  type: 'file';
+  type: string;
   etag?: string;
 }
 
