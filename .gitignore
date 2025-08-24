@@ -77,3 +77,4 @@ policies/ro-*.json
 
 # SSL certificates
 nginx/ssl/.env.production
+.env.production
