@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, createContext, ReactNode } from 'react';
+import React, { useState, useEffect, useContext, createContext, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { auth } from '../lib/api';
 import type { User, AuthStatus } from '../types';
