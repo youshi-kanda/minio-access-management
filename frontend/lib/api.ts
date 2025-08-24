@@ -49,11 +49,9 @@ const setupInterceptors = (api: AxiosInstance, apiName: string) => {
 
   api.interceptors.response.use(
     (response: AxiosResponse) => {
-      // Log response time in development
+      // Log response in development
       if (process.env.NODE_ENV === 'development') {
-        const endTime = new Date();
-        const duration = endTime.getTime() - (response.config.metadata?.startTime?.getTime() || endTime.getTime());
-        console.log(`${apiName} ${response.config.method?.toUpperCase()} ${response.config.url}: ${duration}ms`);
+        console.log(`${apiName} ${response.config.method?.toUpperCase()} ${response.config.url}: ${response.status}`);
       }
       return response;
     },
