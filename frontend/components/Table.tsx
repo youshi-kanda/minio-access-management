@@ -54,7 +54,7 @@ export default function Table<T extends Record<string, any>>({
     );
   };
 
-  const getCellValue = (item: T, column: TableColumn<T>) => {
+  const getCellValue = (item: T, column: TableColumn<T>): React.ReactNode => {
     if (column.render) {
       return column.render(item);
     }
@@ -67,7 +67,16 @@ export default function Table<T extends Record<string, any>>({
       if (value === undefined || value === null) break;
     }
     
-    return value;
+    // Ensure we return a ReactNode-compatible value
+    if (value === null || value === undefined) {
+      return '';
+    }
+    
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    
+    return String(value);
   };
 
   if (loading) {
