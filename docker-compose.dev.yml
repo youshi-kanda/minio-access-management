@@ -1,0 +1,118 @@
+# Development Docker Compose
+version: '3.8'
+
+services:
+  # Admin API - Development
+  admin-api:
+    build:
+      context: ./admin-api
+      dockerfile: Dockerfile.dev
+    container_name: minio-admin-api-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-https://minio.tunagu.app}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY:-admin}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY:-adminpass}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DEFAULT_INITIAL_MEMBER=${DEFAULT_INITIAL_MEMBER:-tsuji01}
+      - SMTP_HOST=${SMTP_HOST:-smtp.example.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-mailer@example.com}
+      - SMTP_PASS=${SMTP_PASS:-password}
+      - FROM_ADDR=${FROM_ADDR:-minio-noreply@tunagu.tech}
+      - INVITE_TTL_MINUTES=${INVITE_TTL_MINUTES:-10}
+      - SESSION_SECRET=${SESSION_SECRET:-dev-secret-change-me}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_EMAIL_DOMAIN=${ALLOWED_EMAIL_DOMAIN:-tunagu.tech}
+    volumes:
+      - ./admin-api:/app
+      - ./policies:/app/policies:ro
+      - /app/node_modules
+      - mc-data:/root/.mc
+    depends_on:
+      - mc-setup
+    networks:
+      - minio-network
+    command: npm run dev
+
+  # File API - Development
+  file-api:
+    build:
+      context: ./file-api
+      dockerfile: Dockerfile.dev
+    container_name: minio-file-api-dev
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-https://minio.tunagu.app}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY:-admin}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY:-adminpass}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SIGN_URL_EXPIRES=${SIGN_URL_EXPIRES:-300}
+      - SESSION_SECRET=${SESSION_SECRET:-dev-secret-change-me}
+    volumes:
+      - ./file-api:/app
+      - /app/node_modules
+    networks:
+      - minio-network
+    command: npm run dev
+
+  # Frontend - Development
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: minio-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_ADMIN_BASE=http://localhost:3001
+      - NEXT_PUBLIC_FILES_BASE=http://localhost:3002
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - admin-api
+      - file-api
+    networks:
+      - minio-network
+    command: npm run dev
+
+  # MinIO Client Setup
+  mc-setup:
+    image: minio/mc:latest
+    container_name: minio-mc-setup-dev
+    environment:
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-https://minio.tunagu.app}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY:-admin}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY:-adminpass}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+    volumes:
+      - mc-data:/root/.mc
+    networks:
+      - minio-network
+    command: >
+      sh -c "
+        echo 'Setting up MinIO Client for development...' &&
+        mc alias set $${MINIO_ALIAS} $${MINIO_ENDPOINT} $${MINIO_ADMIN_ACCESS_KEY} $${MINIO_ADMIN_SECRET_KEY} --api S3v4 &&
+        echo 'MinIO Client setup completed' &&
+        mc admin info $${MINIO_ALIAS} || echo 'Connection test failed - check MinIO credentials'
+      "
+    restart: "no"
+
+volumes:
+  mc-data:
+    driver: local
+
+networks:
+  minio-network:
+    driver: bridge

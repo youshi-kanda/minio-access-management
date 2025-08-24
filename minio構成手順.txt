@@ -1,0 +1,361 @@
+# 0. ドキュメントの目的
+
+MinIO Community Edition を中核とした **無料** 構成で、GUI による「ユーザー／権限／バケット管理」と「ファイル閲覧・操作」を提供する自作システムの開発に必要な資料をひとまとめにする。実装チームがこの資料のみで設計・構築・テスト・リリースまで完遂できる状態を目指す。
+
+---
+
+# 1. スコープ & ゴール
+
+* **スコープ**
+
+  * 管理UI（Admin UI）：`mc admin` をラップし、ユーザー・グループ・ポリシー・バケット作成と招待機能（メール）を提供。
+  * ファイルUI（File UI）：S3互換SDKでオブジェクト一覧／検索／プレビュー（署名URL）／アップロード／削除。
+  * SSO：自作UIのログインに **Google OAuth**（OIDC）を採用（ドメイン制限）。
+  * 招待メール：ユーザー作成／グループ割当／初回セットアップURL送信。
+* **ゴール**
+
+  * バケット作成時の **既定：バージョニングON**、既定ポリシー= **RW**（UIでRW/RO切替可）。
+  * バケットごとに「メンバー管理（招待・解除）」がGUIで可能。
+  * 作成直後の初期メンバーは **tsuji01（つじ）** を RW に自動追加（要件固定）。
+
+---
+
+# 2. 既存前提（環境の外部インターフェース）
+
+* S3 API エンドポイント：`https://minio.tunagu.app`
+* MinIO Console（参考用）：`https://console.tunagu.app`
+* バケット例：`noce-creative`（PRIVATE）／既存ポリシー例：`rw-noce`
+* 管理者資格情報：**実運用では .env / Docker Secret に保存**（本書内では変数で表現）。
+
+> 備考：本プロジェクトは **Community Edition** 前提。公式Consoleには「ユーザー/ポリシー管理」機能が無いため、`mc admin` をAPI化する。
+
+---
+
+# 3. 全体アーキテクチャ
+
+```
+[Admin/Member Browser]
+   ├── admin.tunagu.app  ──▶ Admin UI（Next.js/React）
+   │                          └─ Admin API（Node/Express）— mc admin ラッパ
+   └── files.tunagu.app  ──▶ File UI（Next.js/React）
+                              └─ File API（Node/Express）— AWS S3 SDK v3
+
+外部クライアント：Commander One / WinSCP / Cyberduck → https://minio.tunagu.app（S3v4）
+
+Nginx(443) ⇄ Docker Compose( admin-api / file-api / frontend ) ⇄ MinIO（既存）
+```
+
+* **Google OAuth**：Admin UI / File UI のログインをSSO化。社内ドメインまたは許可リストで制限。
+* **メール**：Admin API が SMTP 経由で招待メール送信。
+
+---
+
+# 4. ドメインモデル（権限設計）
+
+## 4.1 エンティティ
+
+* **User**：MinIOユーザー名・表示名・メール・有効/無効。
+* **Group**：`grp-<bucket>-rw` / `grp-<bucket>-ro`。
+* **Policy**：`rw-<bucket>` / `ro-<bucket>`（JSON）
+* **Bucket**：作成時に Versioning=ON（既定）。
+* **Invite**：招待トークン、対象バケット、ロール（RW/RO）、有効期限。
+
+## 4.2 関係
+
+* User —(member-of)→ Group
+* Group —(attached)→ Policy
+* Policy —(applies-to)→ Bucket
+
+> **原則**：ユーザーへ直接ポリシー付与せず、必ずグループ経由（安全で運用しやすい）。
+
+---
+
+# 5. ポリシーJSON（テンプレート）
+
+* `rw-<bucket>.json`
+
+```json
+{
+  "Version":"2012-10-17",
+  "Statement":[
+    {"Effect":"Allow","Action":["s3:ListBucket"],"Resource":["arn:aws:s3:::$BUCKET"]},
+    {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$BUCKET/*"]}
+  ]
+}
+```
+
+* `ro-<bucket>.json`
+
+```json
+{
+  "Version":"2012-10-17",
+  "Statement":[
+    {"Effect":"Allow","Action":["s3:ListBucket"],"Resource":["arn:aws:s3:::$BUCKET"]},
+    {"Effect":"Allow","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::$BUCKET/*"]}
+  ]
+}
+```
+
+---
+
+# 6. API 設計（REST）
+
+## 6.1 共通
+
+* Auth：Cookie セッション（SSO後）／CSRF 対策。
+* 監査：全APIで userId / action / payload の監査ログを保存。
+
+## 6.2 管理API（mcラッパ）
+
+* `POST /api/buckets`
+
+  * body: `{ name, versioning=true, defaultPolicy="RW", initialMember=true }`
+  * 処理：
+
+    1. `mc mb myminio/<name>`
+    2. `mc version enable myminio/<name>`（versioning=true の場合）
+    3. `mc admin policy add myminio rw-<name> ./policies/rw-<name>.json`（必要に応じ生成）
+    4. `mc admin policy add myminio ro-<name> ./policies/ro-<name>.json`
+    5. `mc admin group add myminio grp-<name>-rw` / `grp-<name>-ro`
+    6. `mc admin policy attach myminio rw-<name> --group grp-<name>-rw`（ROも同様）
+    7. `initialMember=true` の場合、`tsuji01` を `grp-<name>-rw` に追加
+  * res: `{ ok: true }`
+
+* `GET /api/buckets`：ListBuckets（S3）
+
+* `PATCH /api/buckets/:name/policy`：既定ポリシーの切替（UI上の表示/規定グループの切替）
+
+* `GET /api/buckets/:name/members?role=rw|ro`：グループ所属ユーザー一覧
+
+* `POST /api/buckets/:name/members`：`{ username, role }` → `mc admin group add ...`
+
+* `DELETE /api/buckets/:name/members`：`{ username, role }` → グループから除外
+
+* `POST /api/users`：`{ username, secret, displayName?, email? }` → `mc admin user add`
+
+* `PATCH /api/users/:username/disable` / `enable`
+
+* `POST /api/invite`：`{ email, bucket, role }` → ユーザー作成＋グループ追加＋招待メール送信
+
+* `POST /api/invite/accept`：`{ token, newSecret }` → 初回セットアップ完了
+
+## 6.3 ファイルAPI（S3 SDK）
+
+* `GET /api/objects?bucket&prefix&token` → ListObjectsV2（`Delimiter=/`）
+* `GET /api/object-url?bucket&key&disposition=inline` → 署名URL（ex: 300秒）
+* `POST /api/upload`（multipart/form-data） → PutObject
+* `DELETE /api/object` → DeleteObject
+
+---
+
+# 7. 画面仕様（UI ワイヤーフレームの要約）
+
+## 7.1 管理UI
+
+* **ダッシュボード**：バケット数／ユーザー数／最近の操作ログ
+* **バケット一覧**：検索、ページング、「新規バケット」
+* **新規バケットモーダル**：
+
+  * バケット名（必須）
+  * バージョニング（トグル, 既定ON）
+  * 既定ポリシー（RW/RO, 既定=RW）
+  * 「作成直後に tsuji01 を招待（RW）」チェック（既定ON）
+* **バケット詳細**：
+
+  * 概要（Versioning 状態 / 既定ポリシー）
+  * メンバー（タブ：RW / RO）— 追加・削除
+  * 操作ログ（最近のイベント）
+* **ユーザー管理**：一覧／追加（メール・表示名・初期権限）／無効化
+* **招待**：メールアドレス、対象バケット、ロール、期限、メッセージ
+
+## 7.2 ファイルUI
+
+* **ブラウズ**：バケット選択 → 疑似フォルダ（`CommonPrefixes`）／ファイル（`Contents`）
+* **検索**：Prefix／キーワード
+* **プレビュー**：画像/動画/PDF/テキスト（署名URL埋め込み）
+* **アップロード**：単体（ドラッグ&ドロップ）
+* **操作**：ダウンロード／削除（権限に応じて制御）
+
+---
+
+# 8. 招待メール & SSO 設計
+
+## 8.1 招待メール
+
+* SMTP 環境変数：`SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, FROM_ADDR`
+* テンプレ（例）
+
+  * 件名：`[MinIO] ${bucket} へのアクセス招待`
+  * 本文：`{recipientName} 様、${bucket} に RW(またはRO) 権限で招待されました。下記の初回セットアップURLは ${ttl} 分で失効します。...`
+* 招待URL：`https://admin.tunagu.app/invite/accept?token=...`（有効期限5〜15分／1回限り）
+
+## 8.2 Google OAuth（SSO）
+
+* GCP の OAuth クライアント（Web）
+* リダイレクトURI：`https://admin.tunagu.app/auth/google/callback`
+* 許可ドメイン：`tunagu.tech` など
+* ログイン処理：メール検証 → 社内ユーザーDBに作成/紐付け → セッションクッキー発行
+* S3クライアント用資格情報は UI から「自分のアクセスキー/シークレット」を取得（SSOとは切り離し）
+
+---
+
+# 9. インフラ & デプロイ
+
+## 9.1 DNS
+
+* `admin.tunagu.app`, `files.tunagu.app` を VPS IP の A レコードに追加
+
+## 9.2 Nginx（例：HTTPS リバプロ）
+
+```nginx
+server {
+  server_name admin.tunagu.app;
+  location / { proxy_pass http://localhost:3001; proxy_set_header Host $host; }
+  listen 443 ssl; ssl_certificate /etc/letsencrypt/live/admin.tunagu.app/fullchain.pem; ssl_certificate_key /etc/letsencrypt/live/admin.tunagu.app/privkey.pem;
+}
+server { listen 80; server_name admin.tunagu.app; return 301 https://$host$request_uri; }
+```
+
+## 9.3 Docker Compose（抜粋）
+
+```yaml
+services:
+  admin-api:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "mc alias set $MINIO_ALIAS $MINIO_ENDPOINT $MINIO_ADMIN_ACCESS_KEY $MINIO_ADMIN_SECRET_KEY --api S3v4 && node admin.js"
+    environment:
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ADMIN_ACCESS_KEY: ${MINIO_ADMIN_ACCESS_KEY}
+      MINIO_ADMIN_SECRET_KEY: ${MINIO_ADMIN_SECRET_KEY}
+      MINIO_ALIAS: ${MINIO_ALIAS}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      FROM_ADDR: ${FROM_ADDR}
+      INVITE_TTL_MINUTES: 10
+    volumes:
+      - /usr/local/bin/mc:/usr/local/bin/mc
+      - ./policies:/policies
+    ports: ["3001:3001"]
+
+  file-api:
+    image: node:20-alpine
+    working_dir: /app
+    command: node file.js
+    environment:
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      SIGN_URL_EXPIRES: ${SIGN_URL_EXPIRES}
+    ports: ["3002:3002"]
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm run start"
+    environment:
+      NEXT_PUBLIC_FILES_BASE: https://files.tunagu.app
+      NEXT_PUBLIC_ADMIN_BASE: https://admin.tunagu.app
+    ports: ["3000:3000"]
+```
+
+## 9.4 .env（例）
+
+```
+MINIO_ENDPOINT=https://minio.tunagu.app
+MINIO_ADMIN_ACCESS_KEY=admin
+MINIO_ADMIN_SECRET_KEY=adminpass
+MINIO_ALIAS=myminio
+AWS_REGION=us-east-1
+SIGN_URL_EXPIRES=300
+DEFAULT_INITIAL_MEMBER=tsuji01
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=mailer@example.com
+SMTP_PASS=******
+FROM_ADDR=minio-noreply@tunagu.tech
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+ALLOWED_EMAIL_DOMAIN=tunagu.tech
+SESSION_SECRET=change_me
+```
+
+---
+
+# 10. セキュリティ設計
+
+* 管理資格情報は **サーバ側のみ**（Docker Secret / ENV）。
+* Admin UI へ **Basic認証 + IP許可リスト**（初期）→ 将来SSO専用に切替。
+* 署名URL：短寿命（例：300秒）。
+* 監査：招待・受諾・権限変更・鍵再発行・削除操作を全て記録（CSVエクスポート可）。
+* PII 最小化：ユーザーのメール／表示名のみを保持。アクセスキーは再発行型。
+
+---
+
+# 11. 開発プロセス & タスク分解
+
+1. ひな形生成（Monorepo or 双構成：/admin-api /file-api /frontend）
+2. File API：List/URL/Upload/Delete 実装
+3. Admin API：bucket 作成→versioning→policy→group→initialMember
+4. 招待API：user add → group add → token 発行 → メール送信 → 受諾
+5. SSO：Google OAuth（ドメイン制限／セッション管理）
+6. UI：
+
+   * 管理：バケット一覧/作成/詳細、メンバー管理、ユーザー・招待画面
+   * ファイル：ブラウズ、検索、プレビュー、アップロード、削除
+7. ログ/監査：API ミドルウェア
+8. インフラ：Nginx / certbot / Compose / .env / WAF
+9. E2E：受け入れテスト、ドキュメント更新
+
+---
+
+# 12. テスト計画
+
+## 12.1 受け入れ基準
+
+* 新規バケット作成で Versioning=ON が反映。
+* 既定ポリシー=RW（切替で RO へ変更可）。
+* 作成直後に `tsuji01` が RW グループへ所属。
+* 招待メールから受諾→初回セットアップ完了。
+* Google ログインで UI 利用可。権限はグループで制御。
+* 署名URLで閲覧・ダウンロード可能／期限切れ時は再取得。
+
+## 12.2 代表テストケース
+
+* 正常系：
+
+  * `project-a` を作成→`tsuji01` が Commander One で RW 操作可
+  * 既定ポリシーを RO に変更→アップロード不可を確認
+  * 招待→受諾→File UI で閲覧・アップロード
+* 異常系：
+
+  * バケット名重複／無効名
+  * 招待トークン期限切れ／再利用
+  * SMTP 不達／OAuth 失敗／権限不足
+
+---
+
+# 13. 運用（Runbook）
+
+* 新規プロジェクト開始：バケット作成（既定ON/RW）→ つじ自動追加 → メンバー招待。
+* 退職者対応：当該ユーザーをグループから除外＋ユーザー無効化。
+* ポリシー変更：RW ↔ RO を UI で切替。
+* バックアップ：policies ディレクトリ、.env、Compose ファイルをGit Secretsで保管。
+
+---
+
+# 14. リリース管理
+
+* デプロイ：`docker compose up -d`（タグ固定）
+* ロールバック：直前タグへ切替
+* リリースノート：変更点・移行手順・既知の問題を記載
+
+---
+
+# 15. 将来拡張
+
+* マルチパートアップロード／断点再開
+* ライフサイクルルールGUI（自動アーカイブ/削除）
+* Webhook / 監査の外部転送（SIEM）
+* SSO の IdP 拡張（Azure AD / Okta）

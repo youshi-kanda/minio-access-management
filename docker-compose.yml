@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # Admin API - MinIO管理機能
+  admin-api:
+    build:
+      context: ./admin-api
+      dockerfile: Dockerfile
+    container_name: minio-admin-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DEFAULT_INITIAL_MEMBER=${DEFAULT_INITIAL_MEMBER:-tsuji01}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - FROM_ADDR=${FROM_ADDR}
+      - INVITE_TTL_MINUTES=${INVITE_TTL_MINUTES:-10}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_EMAIL_DOMAIN=${ALLOWED_EMAIL_DOMAIN}
+    volumes:
+      - ./policies:/app/policies:ro
+      - mc-data:/root/.mc
+    depends_on:
+      - mc-setup
+    networks:
+      - minio-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # File API - S3 SDK ファイル操作
+  file-api:
+    build:
+      context: ./file-api
+      dockerfile: Dockerfile
+    container_name: minio-file-api
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SIGN_URL_EXPIRES=${SIGN_URL_EXPIRES:-300}
+      - SESSION_SECRET=${SESSION_SECRET}
+    networks:
+      - minio-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend - Next.js UI
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: minio-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_ADMIN_BASE=${NEXT_PUBLIC_ADMIN_BASE:-http://localhost:3001}
+      - NEXT_PUBLIC_FILES_BASE=${NEXT_PUBLIC_FILES_BASE:-http://localhost:3002}
+    depends_on:
+      - admin-api
+      - file-api
+    networks:
+      - minio-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MinIO Client Setup - mc alias 設定
+  mc-setup:
+    image: minio/mc:latest
+    container_name: minio-mc-setup
+    environment:
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+    volumes:
+      - mc-data:/root/.mc
+    networks:
+      - minio-network
+    command: >
+      sh -c "
+        echo 'Setting up MinIO Client...' &&
+        mc alias set $${MINIO_ALIAS} $${MINIO_ENDPOINT} $${MINIO_ADMIN_ACCESS_KEY} $${MINIO_ADMIN_SECRET_KEY} --api S3v4 &&
+        echo 'MinIO Client setup completed' &&
+        mc admin info $${MINIO_ALIAS}
+      "
+    restart: "no"
+
+volumes:
+  mc-data:
+    driver: local
+
+networks:
+  minio-network:
+    driver: bridge

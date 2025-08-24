@@ -1,0 +1,66 @@
+# Local Development with MinIO Server
+version: '3.8'
+
+services:
+  # MinIO Server (Local Development)
+  minio:
+    image: minio/minio:latest
+    container_name: minio-server-local
+    ports:
+      - "9000:9000"    # S3 API
+      - "9001:9001"    # Console
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_CONSOLE_ADDRESS=:9001
+    volumes:
+      - minio-data:/data
+    networks:
+      - minio-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client Setup for Local
+  mc-setup:
+    image: minio/mc:latest
+    container_name: minio-mc-setup-local
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ADMIN_ACCESS_KEY=minioadmin
+      - MINIO_ADMIN_SECRET_KEY=minioadmin
+      - MINIO_ALIAS=local
+    volumes:
+      - mc-data:/root/.mc
+    networks:
+      - minio-network
+    command: >
+      sh -c "
+        echo 'Waiting for MinIO server to be ready...' &&
+        sleep 5 &&
+        echo 'Setting up MinIO Client...' &&
+        mc alias set local http://minio:9000 minioadmin minioadmin &&
+        echo 'MinIO Client setup completed' &&
+        mc admin info local &&
+        echo 'Creating demo buckets...' &&
+        mc mb local/demo-bucket --ignore-existing &&
+        mc mb local/test-files --ignore-existing &&
+        echo 'Demo setup completed'
+      "
+    restart: "no"
+
+volumes:
+  minio-data:
+    driver: local
+  mc-data:
+    driver: local
+
+networks:
+  minio-network:
+    driver: bridge

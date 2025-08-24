@@ -1,0 +1,44 @@
+{
+  "name": "minio-access-management",
+  "version": "1.0.0",
+  "description": "Complete MinIO access management system with admin UI, file UI, and invitation system",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test-deployment.js",
+    "dev": "make dev",
+    "prod": "make prod",
+    "setup": "make setup",
+    "build": "make build",
+    "start": "make start",
+    "stop": "make stop",
+    "logs": "make logs",
+    "health": "make health",
+    "clean": "make clean",
+    "deploy": "make deploy-local",
+    "test-unit": "npm run test --prefix admin-api && npm run test --prefix file-api",
+    "lint": "echo 'Linting all projects...' && cd admin-api && npm run lint && cd ../file-api && npm run lint && cd ../frontend && npm run lint",
+    "install-all": "cd admin-api && npm install && cd ../file-api && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "axios": "^1.5.0",
+    "js-yaml": "^4.1.0"
+  },
+  "keywords": [
+    "minio",
+    "s3",
+    "file-management", 
+    "access-control",
+    "oauth",
+    "docker"
+  ],
+  "author": "MinIO Access Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/minio-access-management"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

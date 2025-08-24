@@ -1,0 +1,165 @@
+# Docker Compose for Nginx + Certbot (optional containerized approach)
+version: '3.8'
+
+services:
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: minio-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - frontend
+    networks:
+      - minio-network
+      - nginx-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: minio-certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+      - certbot-logs:/var/log/letsencrypt
+    command: >-
+      sh -c "
+        trap exit TERM;
+        while :; do
+          certbot renew --webroot --webroot-path=/var/www/certbot --email admin@tunagu.tech --agree-tos --no-eff-email;
+          sleep 12h & wait $!;
+        done
+      "
+    restart: unless-stopped
+    networks:
+      - nginx-network
+
+  # Frontend service (from main docker-compose.yml)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: minio-frontend-nginx
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_ADMIN_BASE=https://admin.tunagu.app
+      - NEXT_PUBLIC_FILES_BASE=https://files.tunagu.app
+    depends_on:
+      - admin-api
+      - file-api
+    networks:
+      - minio-network
+
+  # Admin API service
+  admin-api:
+    build:
+      context: ./admin-api
+      dockerfile: Dockerfile
+    container_name: minio-admin-api-nginx
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - DEFAULT_INITIAL_MEMBER=${DEFAULT_INITIAL_MEMBER:-tsuji01}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - FROM_ADDR=${FROM_ADDR}
+      - INVITE_TTL_MINUTES=${INVITE_TTL_MINUTES:-10}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_EMAIL_DOMAIN=${ALLOWED_EMAIL_DOMAIN}
+    volumes:
+      - ./policies:/app/policies:ro
+      - mc-data:/root/.mc
+    depends_on:
+      - mc-setup
+    networks:
+      - minio-network
+
+  # File API service
+  file-api:
+    build:
+      context: ./file-api
+      dockerfile: Dockerfile
+    container_name: minio-file-api-nginx
+    restart: unless-stopped
+    expose:
+      - "3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SIGN_URL_EXPIRES=${SIGN_URL_EXPIRES:-300}
+      - SESSION_SECRET=${SESSION_SECRET}
+    networks:
+      - minio-network
+
+  # MinIO Client Setup
+  mc-setup:
+    image: minio/mc:latest
+    container_name: minio-mc-setup-nginx
+    environment:
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ADMIN_ACCESS_KEY=${MINIO_ADMIN_ACCESS_KEY}
+      - MINIO_ADMIN_SECRET_KEY=${MINIO_ADMIN_SECRET_KEY}
+      - MINIO_ALIAS=${MINIO_ALIAS:-myminio}
+    volumes:
+      - mc-data:/root/.mc
+    networks:
+      - minio-network
+    command: >
+      sh -c "
+        echo 'Setting up MinIO Client...' &&
+        mc alias set $${MINIO_ALIAS} $${MINIO_ENDPOINT} $${MINIO_ADMIN_ACCESS_KEY} $${MINIO_ADMIN_SECRET_KEY} --api S3v4 &&
+        echo 'MinIO Client setup completed' &&
+        mc admin info $${MINIO_ALIAS}
+      "
+    restart: "no"
+
+volumes:
+  certbot-webroot:
+    driver: local
+  certbot-certs:
+    driver: local
+  certbot-logs:
+    driver: local
+  nginx-logs:
+    driver: local
+  mc-data:
+    driver: local
+
+networks:
+  minio-network:
+    driver: bridge
+  nginx-network:
+    driver: bridge

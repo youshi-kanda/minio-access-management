@@ -1,0 +1,45 @@
+プロジェクトコードから構築します。使用する言語と構築タスクを提示してくだ
+  さい
+
+⏺ Update Todos
+  ⎿  ☐ プロジェクト構造とpackage.json設定                
+     ☐ Admin API (Node.js/Express) - mc adminラッパー実装
+     ☐ File API (Node.js/Express) - S3 SDK実装
+     ☐ Frontend (Next.js/React) - 管理UI実装
+     ☐ Frontend (Next.js/React) - ファイルUI実装
+     ☐ Google OAuth認証システム実装
+     ☐ 招待メール機能実装
+     ☐ Docker Compose設定
+     ☐ Nginx設定とSSL対応
+     ☐ テスト実装と動作確認
+
+⏺ 使用言語・技術スタック:
+  - Backend: Node.js + Express.js
+  - Frontend: Next.js + React + TypeScript
+  - Database: MinIO (S3互換) + セッション用メモリストア
+  - Auth: Google OAuth 2.0 + Passport.js
+  - Email: Nodemailer (SMTP)
+  - Container: Docker + Docker Compose
+
+  構築タスク一覧:
+
+  1. プロジェクト構造とpackage.json設定
+  2. Admin API (Node.js/Express) - mc adminラッパー実装
+  3. File API (Node.js/Express) - S3 SDK実装
+  4. Frontend (Next.js/React) - 管理UI実装
+  5. Frontend (Next.js/React) - ファイルUI実装
+  6. Google OAuth認証システム実装
+  7. 招待メール機能実装
+  8. Docker Compose設定
+  9. Nginx設定とSSL対応
+  10. テスト実装と動作確認
+
+  プロジェクト構造:
+  minio-access/
+  ├── admin-api/          # 管理API (port 3001)
+  ├── file-api/           # ファイルAPI (port 3002)
+  ├── frontend/           # Next.js UI (port 3000)
+  ├── policies/           # MinIOポリシーテンプレート
+  ├── docker-compose.yml  # コンテナ構成
+  ├── nginx/             # リバースプロキシ設定
+  └── .env               # 環境変数
