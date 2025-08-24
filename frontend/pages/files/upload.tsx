@@ -6,14 +6,15 @@ import { fileApi, formatFileSize } from '../../lib/fileApi';
 import toast from 'react-hot-toast';
 import {
   ArrowLeftIcon,
-  UploadIcon,
-  XIcon,
+  ArrowUpTrayIcon as UploadIcon,
+  XMarkIcon as XIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 
-interface UploadFile extends File {
+interface UploadFile {
   id: string;
+  file: File;
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'error';
   error?: string;
@@ -73,8 +74,8 @@ export default function FileUploadPage() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
-      ...file,
       id: Math.random().toString(36).substr(2, 9),
+      file,
       progress: 0,
       status: 'pending',
     }));
@@ -100,7 +101,7 @@ export default function FileUploadPage() {
 
       fileApi.uploadFile(
         currentBucket,
-        file,
+        file.file,
         currentPath,
         { uploadedAt: new Date().toISOString() },
         (progress) => {
@@ -363,10 +364,10 @@ export default function FileUploadPage() {
                       {getStatusIcon(file.status)}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {file.name}
+                          {file.file.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {formatFileSize(file.size)} • {getStatusText(file)}
+                          {formatFileSize(file.file.size)} • {getStatusText(file)}
                         </p>
                       </div>
                     </div>

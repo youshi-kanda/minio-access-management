@@ -8,10 +8,10 @@ import { invites, buckets } from '../../lib/api';
 import toast from 'react-hot-toast';
 import {
   PlusIcon,
-  MailIcon,
+  EnvelopeIcon as MailIcon,
   ClockIcon,
   CheckCircleIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { ActiveInvite, InviteRequest, Bucket, TableColumn } from '../../types';
 
 export default function InvitationsPage() {

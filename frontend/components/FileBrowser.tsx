@@ -4,12 +4,12 @@ import {
   FolderIcon,
   DocumentIcon,
   EyeIcon,
-  DownloadIcon,
+  ArrowDownTrayIcon as DownloadIcon,
   TrashIcon,
   ChevronRightIcon,
   HomeIcon,
-  SearchIcon,
-} from '@heroicons/react/outline';
+  MagnifyingGlassIcon as SearchIcon,
+} from '@heroicons/react/24/outline';
 import { fileApi, formatFileSize, getFileIcon } from '../lib/fileApi';
 import Modal from './Modal';
 import toast from 'react-hot-toast';

@@ -5,9 +5,9 @@ import { buckets, users } from '../lib/api';
 import {
   FolderIcon,
   UsersIcon,
-  DatabaseIcon,
+  CircleStackIcon as DatabaseIcon,
   ClockIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { Bucket, MinIOUser } from '../types';
 
 interface DashboardStats {

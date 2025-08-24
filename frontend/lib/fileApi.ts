@@ -20,7 +20,10 @@ const filesApi: AxiosInstance = axios.create({
 // Request/Response interceptors
 filesApi.interceptors.request.use(
   (config) => {
-    config.metadata = { startTime: new Date() };
+    // Add request timestamp for debugging (store in config params for debugging)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Files API Request:', config.url, new Date());
+    }
     return config;
   },
   (error) => {
@@ -31,11 +34,9 @@ filesApi.interceptors.request.use(
 
 filesApi.interceptors.response.use(
   (response: AxiosResponse) => {
-    // Log response time in development
+    // Log response in development
     if (process.env.NODE_ENV === 'development') {
-      const endTime = new Date();
-      const duration = endTime.getTime() - (response.config.metadata?.startTime?.getTime() || endTime.getTime());
-      console.log(`Files API ${response.config.method?.toUpperCase()} ${response.config.url}: ${duration}ms`);
+      console.log(`Files API ${response.config.method?.toUpperCase()} ${response.config.url}: ${response.status}`);
     }
     return response;
   },

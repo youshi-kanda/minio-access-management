@@ -6,9 +6,9 @@ import { fileApi } from '../../../lib/fileApi';
 import toast from 'react-hot-toast';
 import {
   ArrowLeftIcon,
-  UploadIcon,
-  RefreshIcon,
-} from '@heroicons/react/outline';
+  ArrowUpTrayIcon as UploadIcon,
+  ArrowPathIcon as RefreshIcon,
+} from '@heroicons/react/24/outline';
 
 export default function BucketBrowserPage() {
   const router = useRouter();

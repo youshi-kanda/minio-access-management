@@ -7,9 +7,9 @@ import {
   FolderIcon,
   UsersIcon,
   CogIcon,
-  LogoutIcon,
-  MailIcon,
-} from '@heroicons/react/outline';
+  ArrowRightOnRectangleIcon as LogoutIcon,
+  EnvelopeIcon as MailIcon,
+} from '@heroicons/react/24/outline';
 
 interface LayoutProps {
   children: React.ReactNode;

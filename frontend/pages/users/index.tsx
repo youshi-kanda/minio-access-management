@@ -12,7 +12,7 @@ import {
   XCircleIcon,
   KeyIcon,
   TrashIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { MinIOUser, CreateUserRequest, TableColumn } from '../../types';
 
 export default function UsersPage() {

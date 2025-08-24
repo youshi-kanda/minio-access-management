@@ -5,9 +5,9 @@ import { fileApi } from '../../lib/fileApi';
 import toast from 'react-hot-toast';
 import {
   FolderIcon,
-  DatabaseIcon,
+  CircleStackIcon as DatabaseIcon,
   ClockIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 
 interface BucketInfo {
   name: string;

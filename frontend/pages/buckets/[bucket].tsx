@@ -6,11 +6,11 @@ import { useRequireAuth } from '../../hooks/useAuth';
 import { buckets } from '../../lib/api';
 import toast from 'react-hot-toast';
 import {
-  UserAddIcon,
-  UserRemoveIcon,
+  UserPlusIcon as UserAddIcon,
+  UserMinusIcon as UserRemoveIcon,
   CogIcon,
   ArrowLeftIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { BucketMembersResponse } from '../../types';
 
 export default function BucketDetailPage() {

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { fileApi } from '../../lib/fileApi';
 import toast from 'react-hot-toast';
-import { FolderIcon } from '@heroicons/react/outline';
+import { FolderIcon } from '@heroicons/react/24/outline';
 
 export default function FilesLoginPage() {
   const [email, setEmail] = useState('');

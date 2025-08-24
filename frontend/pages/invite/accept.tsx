@@ -5,9 +5,9 @@ import { invites } from '../../lib/api';
 import toast from 'react-hot-toast';
 import {
   CheckCircleIcon,
-  ExclamationIcon,
+  ExclamationTriangleIcon as ExclamationIcon,
   XCircleIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { InviteDetails } from '../../types';
 
 export default function AcceptInvitePage() {

@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XIcon } from '@heroicons/react/outline';
+import { XMarkIcon as XIcon } from '@heroicons/react/24/outline';
 import type { ModalProps } from '../types';
 
 export default function Modal({

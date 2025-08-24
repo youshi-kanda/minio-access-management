@@ -11,7 +11,7 @@ import {
   CogIcon,
   UsersIcon,
   EyeIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import type { Bucket, BucketCreateRequest, TableColumn } from '../../types';
 
 export default function BucketsPage() {

@@ -4,12 +4,12 @@ import { useRouter } from 'next/router';
 import {
   HomeIcon,
   FolderIcon,
-  SearchIcon,
-  UploadIcon,
-  LogoutIcon,
+  MagnifyingGlassIcon as SearchIcon,
+  ArrowUpTrayIcon as UploadIcon,
+  ArrowRightOnRectangleIcon as LogoutIcon,
   CogIcon,
   UserIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import { fileApi } from '../lib/fileApi';
 
 interface FileLayoutProps {
